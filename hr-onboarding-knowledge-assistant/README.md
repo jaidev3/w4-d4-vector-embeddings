@@ -7,11 +7,11 @@
 ## 📚 What this project does
 
 1. **Document Upload** – HR can upload PDFs, DOCX, or TXT files (`/upload` endpoint or *Upload* tab in the Streamlit UI).
-2. **Ingestion & Indexing** – Text is extracted, chunked, and (for now) converted into *placeholder* embeddings. Chunks + embeddings are stored persistently in a local Chroma vector database.
+2. **Ingestion & Indexing** – Text is extracted, chunked, and converted into high-quality OpenAI embeddings. Chunks + embeddings are stored persistently in a local Chroma vector database.
 3. **Conversational Querying** – Employees ask questions via chat. Their query is embedded, the most relevant chunks are retrieved, and a response is generated with policy citations.
 4. **Admin Dashboard** – A lightweight Streamlit dashboard lets HR delete previously uploaded files.
 
-> ⚠️  The current version uses deterministic **placeholder embeddings** (fast but low-quality). Swap in a real embedding model (e.g. OpenAI, HuggingFace, instructor-XL, etc.) to improve answer quality – no other code changes required.
+> ✅  This version uses **OpenAI's text-embedding-3-small model** for high-quality semantic embeddings. Make sure to set your `OPENAI_API_KEY` environment variable.
 
 ---
 
@@ -35,19 +35,37 @@ source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
 ```bash
 pip install --upgrade pip wheel
-pip install streamlit fastapi uvicorn langchain chromadb tiktoken python-docx pypdf python-multipart
+pip install -r requirements.txt
 ```
 
-(Feel free to capture these into a `requirements.txt` for CI/CD.)
+### 4. Set up OpenAI API key
 
-### 4. Start the FastAPI backend
+Create a `.env` file in the project root and add your OpenAI API key:
+
+```bash
+echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
+```
+
+Or export it as an environment variable:
+
+```bash
+export OPENAI_API_KEY=your_openai_api_key_here
+```
+
+**Test your setup:**
+```bash
+python demo_embeddings.py
+```
+This will verify your OpenAI API key is working and show you how the embeddings work.
+
+### 5. Start the FastAPI backend
 
 ```bash
 uvicorn backend.app:app --reload --port 8000
 ```
 The API will be accessible at `http://localhost:8000` (interactive docs at `/docs`).
 
-### 5. Launch the Streamlit employee UI
+### 6. Launch the Streamlit employee UI
 
 Open **a second terminal** (keep the backend running) and run:
 
@@ -58,7 +76,7 @@ This opens a browser tab with two tabs:
 * **📄 Upload HR Documents** – choose files & click *Upload & Ingest*
 * **💬 Chat** – ask questions; answers include citations to source files
 
-### 6. (Optional) Launch the admin dashboard
+### 7. (Optional) Launch the admin dashboard
 
 ```bash
 streamlit run admin_dashboard.py
@@ -82,11 +100,20 @@ Here HR staff can see uploaded files and delete them if needed.
 
 ---
 
-## 🧩  Swapping in real embeddings
+## 🧩  OpenAI Embeddings
 
-1. Replace `_placeholder_embedding` in `pipelines/doc_ingestion.py` and `pipelines/retrieval.py` with a call to your embedding provider (OpenAI, Cohere, HuggingFace, etc.).
-2. Keep the embedding dimensionality consistent between ingestion & retrieval.
-3. Re-run the ingestion step (delete `data/chroma_db/` if you want a clean index).
+This project now uses **OpenAI's text-embedding-3-small model** for high-quality semantic embeddings. The embeddings are generated in real-time during both document ingestion and query processing.
+
+**Key features:**
+- Uses OpenAI's latest embedding model (text-embedding-3-small)
+- 1536-dimensional embeddings for better semantic understanding
+- Automatic error handling and logging
+- Consistent embedding generation across ingestion and retrieval
+
+**To use a different embedding model:**
+1. Modify the `model` parameter in `_get_openai_embedding()` functions
+2. Update both `pipelines/doc_ingestion.py` and `pipelines/retrieval.py`
+3. Re-run the ingestion step (delete `data/chroma_db/` if you want a clean index)
 
 ---
 
@@ -103,10 +130,13 @@ Swagger docs: http://localhost:8000/docs
 
 ## 📝  TODOs & future improvements
 
-- Swap placeholder embeddings for production-grade model
+- ✅ ~~Swap placeholder embeddings for production-grade model~~ (Now using OpenAI embeddings)
 - Summarise multiple matching chunks for more coherent answers
 - User authentication for admin dashboard
 - Dockerfile / k8s manifests for production deployment
 - CI tests
+- Add support for .env file loading (python-dotenv)
+- Implement batch processing for large document uploads
+- Add embedding model configuration options
 
 PRs welcome – happy onboarding! 🎉 

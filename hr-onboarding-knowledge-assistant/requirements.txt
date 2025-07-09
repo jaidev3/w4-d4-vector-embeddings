@@ -1,0 +1,12 @@
+streamlit
+fastapi
+uvicorn
+langchain
+chromadb
+tiktoken
+python-docx
+pypdf
+python-multipart
+openai>=1.0.0
+python-dotenv
+numpy 

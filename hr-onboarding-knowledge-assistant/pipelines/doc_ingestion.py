@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 from pathlib import Path
 from typing import List, Dict
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from openai import OpenAI
 
 # External deps for parsing
 from pypdf import PdfReader  # type: ignore
@@ -44,20 +44,33 @@ action_map = {
 
 
 # -----------------------------------------------------------------------------
-# Embedding (placeholder)
+# OpenAI Embedding
 # -----------------------------------------------------------------------------
 
-def _placeholder_embedding(text: str, dims: int = 768) -> List[float]:
-    """Generate deterministic pseudo-embedding by hashing the text.
-
-    This is **NOT** suitable for production – replace with real embeddings later.
+def _get_openai_embedding(text: str, model: str = "text-embedding-3-small") -> List[float]:
+    """Generate embeddings using OpenAI's embedding API.
+    
+    Args:
+        text: The text to embed
+        model: OpenAI embedding model to use (default: text-embedding-3-small)
+    
+    Returns:
+        List of floats representing the embedding vector
+    
+    Raises:
+        Exception: If OpenAI API call fails
     """
-    digest = hashlib.sha256(text.encode("utf-8")).digest()
-    # Repeat / truncate digest to match dims
-    repeat_times = (dims // len(digest)) + 1
-    long_bytes = (digest * repeat_times)[:dims]
-    # Map bytes to floats in range [0,1]
-    return [b / 255.0 for b in long_bytes]
+    client = OpenAI(api_key="add-your-key-here")
+    
+    try:
+        response = client.embeddings.create(
+            input=text,
+            model=model
+        )
+        return response.data[0].embedding
+    except Exception as exc:
+        logger.error("Failed to generate OpenAI embedding: %s", exc)
+        raise exc
 
 
 # -----------------------------------------------------------------------------
@@ -107,15 +120,27 @@ def ingest_files(file_paths: List[str], vector_store: VectorStore | None = None)
         for idx, chunk in enumerate(chunks):
             chunk_id = f"{path.name}-{idx}"
             ids.append(chunk_id)
-            embeddings.append(_placeholder_embedding(chunk))
+            
+            # Generate OpenAI embedding for the chunk
+            try:
+                embedding = _get_openai_embedding(chunk)
+                embeddings.append(embedding)
+            except Exception as exc:
+                logger.error("Failed to generate embedding for chunk %s: %s", chunk_id, exc)
+                continue
+                
             metadatas.append({
                 "source_file": path.name,
                 "chunk_index": idx,
                 "ext": ext,
             })
 
-        vector_store.add_embeddings(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadatas)
-        stats[file_path] = len(chunks)
-        logger.info("Indexed %s chunks from %s", len(chunks), path)
+        # Only add if we have embeddings
+        if embeddings:
+            vector_store.add_embeddings(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadatas)
+            stats[file_path] = len(chunks)
+            logger.info("Indexed %s chunks from %s", len(chunks), path)
+        else:
+            logger.warning("No embeddings generated for %s", path)
 
     return stats 

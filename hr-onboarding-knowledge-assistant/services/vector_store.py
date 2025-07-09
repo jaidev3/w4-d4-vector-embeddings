@@ -55,11 +55,13 @@ class VectorStore:
         filters: Optional[Dict] = None,
     ) -> Dict:
         """Query similar documents, optionally with metadata filters."""
-        return self._collection.query(
-            query_embeddings=query_embeddings,
-            n_results=top_k,
-            where=filters or {},
-        )
+        query_params = {
+            "query_embeddings": query_embeddings,
+            "n_results": top_k,
+        }
+        if filters:
+            query_params["where"] = filters
+        return self._collection.query(**query_params)
 
     # Convenience factory --------------------------------------------------
     @classmethod
