@@ -48,20 +48,33 @@ if submit_qa and user_query.strip():
                 st.error(f"❌ Error: {results['error']}")
             elif results.get("answer"):
                 # Display the LLM-generated answer
-                st.success("✅ Answer Generated")
+                search_type = results.get("search_type", "document")
+                if search_type.startswith("web"):
+                    st.success("✅ Answer Generated from Web Search")
+                    if search_type == "web_fallback_smart":
+                        st.info("🌐 **Note:** Your documents didn't contain relevant information for this query, so I searched the web for current information.")
+                    else:
+                        st.info("🌐 **Note:** No relevant documents were found in your uploaded files, so I searched the web for current information.")
+                else:
+                    st.success("✅ Answer Generated from Documents")
                 
                 # Main answer section
                 st.markdown("### 🤖 AI Assistant Answer:")
                 st.markdown(results["answer"])
                 
                 # Display metadata
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("📄 Sources Used", len(results.get("sources", [])))
                 with col2:
                     st.metric("📝 Chunks Analyzed", results.get("context_chunks_used", 0))
                 with col3:
                     st.metric("🧠 Model", results.get("model_used", "N/A"))
+                with col4:
+                    search_type = results.get("search_type", "document")
+                    search_icon = "🌐" if search_type.startswith("web") else "📚"
+                    search_label = "Web Search" if search_type.startswith("web") else "Documents"
+                    st.metric(f"{search_icon} Search Type", search_label)
                 
                 # Show sources
                 if results.get("sources"):
@@ -70,11 +83,14 @@ if submit_qa and user_query.strip():
                         st.markdown(f"- 📄 {source}")
                 
                 # Expandable section for raw chunks (for reference)
-                with st.expander("🔍 View Retrieved Document Chunks", expanded=False):
+                search_type = results.get("search_type", "document")
+                section_title = "🌐 View Retrieved Web Results" if search_type.startswith("web") else "🔍 View Retrieved Document Chunks"
+                
+                with st.expander(section_title, expanded=False):
                     chunks = results.get("chunks", [])
                     if chunks:
                         for i, chunk in enumerate(chunks):
-                            st.markdown(f"**Chunk {i+1}:**")
+                            st.markdown(f"**{('Web Result' if search_type.startswith('web') else 'Chunk')} {i+1}:**")
                             st.text_area(
                                 f"Content {i+1}",
                                 chunk["content"],
@@ -83,7 +99,10 @@ if submit_qa and user_query.strip():
                                 disabled=True
                             )
                             meta = chunk["metadata"]
-                            st.caption(f"📄 Source: {meta.get('source_file', 'Unknown')} | 📍 Chunk Index: {meta.get('chunk_index', '?')}")
+                            if search_type.startswith("web"):
+                                st.caption(f"🌐 URL: {meta.get('source_file', 'Unknown')} | 📰 Title: {meta.get('title', 'No title')}")
+                            else:
+                                st.caption(f"📄 Source: {meta.get('source_file', 'Unknown')} | 📍 Chunk Index: {meta.get('chunk_index', '?')}")
                             st.divider()
                     else:
                         st.info("No chunks retrieved.")
@@ -227,17 +246,20 @@ st.markdown("""
 
 ### 🤖 AI-Powered Q&A Features:
 - **Smart Search**: Converts your query to embeddings and finds the most relevant document chunks
+- **Web Search Fallback**: When no relevant documents are found, automatically searches the web using Tavily
 - **LLM Integration**: Uses OpenAI's GPT model to generate comprehensive answers based on retrieved context
-- **Source Attribution**: Shows which documents were used to generate the answer
+- **Source Attribution**: Shows which documents or web sources were used to generate the answer
 - **Configurable Results**: Choose how many document chunks to analyze (3, 5, or 10)
-- **Transparent Process**: View the exact document chunks that were used for the answer
+- **Transparent Process**: View the exact document chunks or web results that were used for the answer
+- **Hybrid Search**: Seamlessly combines local document search with real-time web information
 
 ### 🏗️ Architecture:
 - **UI Layer**: Streamlit handles all user interface components
-- **Business Logic**: Main classes in `main.py` handle PDF processing, embeddings, and vector storage
+- **Business Logic**: Main classes in `main.py` handle PDF processing, embeddings, vector storage, and web search
 - **AI Services**: 
   - OpenAI Embeddings API for converting text to vectors
-  - OpenAI Chat Completions API (GPT-3.5-turbo) for answer generation
+  - OpenAI Chat Completions API (GPT-4o-mini) for answer generation
+  - Tavily Search API for web search fallback when documents are insufficient
 - **Data Storage**: ChromaDB for persistent vector storage with semantic search capabilities
-- **RAG Pipeline**: Retrieval-Augmented Generation for accurate, context-aware responses
+- **Hybrid RAG Pipeline**: Retrieval-Augmented Generation with web search fallback for comprehensive responses
 """)
