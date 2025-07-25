@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 import chromadb
+from dotenv import load_dotenv
+load_dotenv()
 
 
 class VectorStore:

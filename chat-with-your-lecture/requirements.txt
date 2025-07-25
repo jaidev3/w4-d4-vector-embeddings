@@ -1,0 +1,9 @@
+streamlit
+openai
+sentence-transformers
+openai-whisper
+chromadb
+ffmpeg-python
+numpy
+certifi
+python-dotenv

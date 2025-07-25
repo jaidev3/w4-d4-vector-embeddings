@@ -10,3 +10,6 @@ python-multipart
 openai>=1.0.0
 python-dotenv
 numpy 
+pinecone-client
+# For Gemini API (Google Generative AI)
+google-generativeai 

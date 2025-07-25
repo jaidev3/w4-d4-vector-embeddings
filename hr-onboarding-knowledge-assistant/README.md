@@ -140,3 +140,17 @@ Swagger docs: http://localhost:8000/docs
 - Add embedding model configuration options
 
 PRs welcome – happy onboarding! 🎉 
+
+## API Keys Setup
+
+Create a `.env` file in the `hr-onboarding-knowledge-assistant` directory with the following content:
+
+```
+# Pinecone API Key
+PINECONE_API_KEY=your-pinecone-api-key
+
+# Gemini API Key
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+Replace `your-pinecone-api-key` and `your-gemini-api-key` with your actual API keys. 

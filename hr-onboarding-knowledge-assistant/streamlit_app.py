@@ -4,6 +4,9 @@ from typing import List
 
 import requests
 import streamlit as st
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 API_URL = "http://localhost:8000"  # FastAPI backend address
 
