@@ -43,6 +43,74 @@ class EmbeddingService:
         response = self.client.embeddings.create(input=text, model=model)
         return response.data[0].embedding
 
+class LLMService:
+    """Handles OpenAI chat completions for answer generation"""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY", "")
+        self.client = OpenAI(api_key=self.api_key)
+    
+    def generate_answer(self, query: str, context_chunks: List[Dict[str, Any]], model: str = "gpt-4o-mini") -> Dict[str, Any]:
+        """Generate an answer based on the query and retrieved context chunks"""
+        try:
+            # Prepare context from chunks
+            context_text = ""
+            sources = set()
+            
+            for i, chunk in enumerate(context_chunks):
+                context_text += f"\n--- Document Chunk {i+1} ---\n"
+                context_text += chunk.get('content', '')
+                
+                # Collect source information
+                metadata = chunk.get('metadata', {})
+                source_file = metadata.get('source_file', 'Unknown')
+                sources.add(source_file)
+            
+            # Create the prompt
+            system_prompt = """You are a helpful research assistant. Your task is to answer questions based on the provided document chunks. 
+
+Instructions:
+1. Use only the information provided in the document chunks to answer the question
+2. If the information is not sufficient to answer the question, say so clearly
+3. Provide specific quotes or references when possible
+4. Structure your answer clearly and concisely
+5. If multiple perspectives or details are available, present them comprehensively"""
+
+            user_prompt = f"""Question: {query}
+
+Context from documents:
+{context_text}
+
+Please provide a comprehensive answer based on the above context."""
+
+            # Generate response using OpenAI
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.1,  # Lower temperature for more focused answers
+                max_tokens=1000
+            )
+            
+            answer = response.choices[0].message.content
+            
+            return {
+                "answer": answer,
+                "sources": list(sources),
+                "context_chunks_used": len(context_chunks),
+                "model_used": model
+            }
+            
+        except Exception as e:
+            return {
+                "error": f"Error generating answer: {str(e)}",
+                "answer": None,
+                "sources": [],
+                "context_chunks_used": 0
+            }
+
 class VectorStore:
     """Manages ChromaDB operations for document storage and retrieval"""
     
@@ -139,6 +207,17 @@ class VectorStore:
         except Exception as e:
             raise Exception(f"Error deleting all documents: {e}")
 
+    def query(self, query_embedding: List[float], n_results: int = 5) -> Dict[str, Any]:
+        """Query the vector store for the most similar documents to the query embedding."""
+        try:
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results
+            )
+            return results
+        except Exception as e:
+            raise Exception(f"Error querying vector store: {e}")
+
 class ResearchAssistant:
     """Main class that orchestrates the research assistant functionality"""
     
@@ -146,6 +225,7 @@ class ResearchAssistant:
         self.pdf_processor = PDFProcessor()
         self.embedding_service = EmbeddingService()
         self.vector_store = VectorStore()
+        self.llm_service = LLMService()
     
     def process_pdf_files(self, file_paths: List[Path]) -> Dict[str, Any]:
         """Process multiple PDF files and index them in the vector store"""
@@ -221,7 +301,120 @@ class ResearchAssistant:
         return self.vector_store.delete_all_documents()
     
     def search_documents(self, query: str, n_results: int = 5) -> Dict[str, Any]:
-        """Search for similar documents based on query (future enhancement)"""
-        # This method can be implemented for semantic search functionality
-        # For now, it's a placeholder for future development
-        pass
+        """Search for similar documents based on query and generate an LLM answer."""
+        # Validate input
+        if not query or not query.strip():
+            return {
+                "error": "Query cannot be empty",
+                "answer": None,
+                "sources": [],
+                "chunks": []
+            }
+        
+        try:
+            # Check if OpenAI API key is available
+            if not self.embedding_service.api_key:
+                return {
+                    "error": "OpenAI API key not found. Please set OPENAI_API_KEY environment variable.",
+                    "answer": None,
+                    "sources": [],
+                    "chunks": []
+                }
+            
+            # Get embedding for the query
+            try:
+                query_embedding = self.embedding_service.get_embedding(query)
+            except Exception as e:
+                return {
+                    "error": f"Failed to generate embedding: {str(e)}",
+                    "answer": None,
+                    "sources": [],
+                    "chunks": []
+                }
+            
+            if not query_embedding:
+                return {
+                    "error": "Failed to generate embedding for the query",
+                    "answer": None,
+                    "sources": [],
+                    "chunks": []
+                }
+            
+            # Query the vector store
+            try:
+                results = self.vector_store.query(query_embedding, n_results=n_results)
+            except Exception as e:
+                return {
+                    "error": f"Vector store query failed: {str(e)}",
+                    "answer": None,
+                    "sources": [],
+                    "chunks": []
+                }
+            
+            if not results:
+                return {
+                    "answer": "No relevant documents found in the database.",
+                    "sources": [],
+                    "chunks": [],
+                    "context_chunks_used": 0
+                }
+            
+            # Format results for processing
+            docs = results.get("documents", [[]])[0] if results.get("documents") else []
+            metadatas = results.get("metadatas", [[]])[0] if results.get("metadatas") else []
+            ids = results.get("ids", [[]])[0] if results.get("ids") else []
+            
+            if not docs:
+                return {
+                    "answer": "No relevant documents found in the database.",
+                    "sources": [],
+                    "chunks": [],
+                    "context_chunks_used": 0
+                }
+            
+            # Prepare chunks for LLM
+            chunks = [
+                {
+                    "id": ids[i] if i < len(ids) else None,
+                    "content": docs[i],
+                    "metadata": metadatas[i] if i < len(metadatas) else {}
+                }
+                for i in range(len(docs))
+            ]
+            
+            # Generate answer using LLM
+            try:
+                llm_response = self.llm_service.generate_answer(query, chunks)
+            except Exception as e:
+                return {
+                    "error": f"LLM service failed: {str(e)}",
+                    "answer": None,
+                    "sources": [],
+                    "chunks": chunks
+                }
+            
+            if not llm_response:
+                return {
+                    "error": "Failed to generate LLM response",
+                    "answer": None,
+                    "sources": [],
+                    "chunks": chunks
+                }
+            
+            # Combine results
+            return {
+                "answer": llm_response.get("answer"),
+                "sources": llm_response.get("sources", []),
+                "chunks": chunks,  # Keep chunks for reference
+                "context_chunks_used": llm_response.get("context_chunks_used", 0),
+                "model_used": llm_response.get("model_used", ""),
+                "error": llm_response.get("error")
+            }
+            
+        except Exception as e:
+            return {
+                "error": f"Search failed: {str(e)}",
+                "answer": None,
+                "sources": [],
+                "chunks": []
+            }

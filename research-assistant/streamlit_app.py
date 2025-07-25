@@ -11,9 +11,87 @@ st.title("📚 Research Assistant: PDF Document Manager")
 @st.cache_resource
 def get_research_assistant():
     """Initialize and cache the ResearchAssistant instance"""
-    return ResearchAssistant()
+    try:
+        return ResearchAssistant()
+    except Exception as e:
+        st.error(f"Failed to initialize Research Assistant: {str(e)}")
+        st.info("Please check your environment setup and dependencies.")
+        return None
 
 research_assistant = get_research_assistant()
+
+# Check if initialization was successful
+if research_assistant is None:
+    st.error("❌ Application failed to initialize properly.")
+    st.info("Please check your setup and refresh the page.")
+    st.stop()
+
+# Q&A Section
+st.header("💬 Ask a Question")
+with st.form("qa_form"):
+    user_query = st.text_input("Type your question about the uploaded documents:", "")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        submit_qa = st.form_submit_button("Get Answer", type="primary")
+    with col2:
+        n_results = st.selectbox("Top chunks to use:", [3, 5, 10], index=0, key="n_results")
+
+if submit_qa and user_query.strip():
+    with st.spinner("🔍 Searching documents and generating answer..."):
+        try:
+            results = research_assistant.search_documents(user_query, n_results=n_results)
+            
+            # Handle case where results might be None
+            if results is None:
+                st.error("❌ Error: Failed to process the query. Please try again.")
+            elif results.get("error"):
+                st.error(f"❌ Error: {results['error']}")
+            elif results.get("answer"):
+                # Display the LLM-generated answer
+                st.success("✅ Answer Generated")
+                
+                # Main answer section
+                st.markdown("### 🤖 AI Assistant Answer:")
+                st.markdown(results["answer"])
+                
+                # Display metadata
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("📄 Sources Used", len(results.get("sources", [])))
+                with col2:
+                    st.metric("📝 Chunks Analyzed", results.get("context_chunks_used", 0))
+                with col3:
+                    st.metric("🧠 Model", results.get("model_used", "N/A"))
+                
+                # Show sources
+                if results.get("sources"):
+                    st.markdown("### 📚 Sources:")
+                    for source in results["sources"]:
+                        st.markdown(f"- 📄 {source}")
+                
+                # Expandable section for raw chunks (for reference)
+                with st.expander("🔍 View Retrieved Document Chunks", expanded=False):
+                    chunks = results.get("chunks", [])
+                    if chunks:
+                        for i, chunk in enumerate(chunks):
+                            st.markdown(f"**Chunk {i+1}:**")
+                            st.text_area(
+                                f"Content {i+1}",
+                                chunk["content"],
+                                height=150,
+                                key=f"chunk_{i}",
+                                disabled=True
+                            )
+                            meta = chunk["metadata"]
+                            st.caption(f"📄 Source: {meta.get('source_file', 'Unknown')} | 📍 Chunk Index: {meta.get('chunk_index', '?')}")
+                            st.divider()
+                    else:
+                        st.info("No chunks retrieved.")
+            else:
+                st.info("ℹ️ No relevant information found in the uploaded documents.")
+        except Exception as e:
+            st.error(f"❌ Unexpected error: {str(e)}")
+            st.info("Please check your OpenAI API key and try again.")
 
 # Create two columns for layout
 col1, col2 = st.columns([1, 1])
@@ -142,15 +220,24 @@ st.markdown("""
 ### ℹ️ How to use:
 1. **Upload PDFs**: Use the file uploader to select one or more PDF files
 2. **Process**: Click "Process and Index Files" to extract text and create embeddings
-3. **View**: See all your indexed documents in the "Existing Documents" section
-4. **Delete**: Remove individual documents or all documents as needed
-5. **Refresh**: Use the refresh button to reload the current state
+3. **Ask Questions**: Type your question in the Q&A section to get AI-powered answers
+4. **View Documents**: See all your indexed documents in the "Existing Documents" section
+5. **Delete**: Remove individual documents or all documents as needed
+6. **Refresh**: Use the refresh button to reload the current state
 
-**Note**: The app automatically refreshes after uploads and deletions to show the current state.
+### 🤖 AI-Powered Q&A Features:
+- **Smart Search**: Converts your query to embeddings and finds the most relevant document chunks
+- **LLM Integration**: Uses OpenAI's GPT model to generate comprehensive answers based on retrieved context
+- **Source Attribution**: Shows which documents were used to generate the answer
+- **Configurable Results**: Choose how many document chunks to analyze (3, 5, or 10)
+- **Transparent Process**: View the exact document chunks that were used for the answer
 
 ### 🏗️ Architecture:
 - **UI Layer**: Streamlit handles all user interface components
 - **Business Logic**: Main classes in `main.py` handle PDF processing, embeddings, and vector storage
-- **Data Storage**: ChromaDB for persistent vector storage
-- **AI Service**: OpenAI API for generating text embeddings
+- **AI Services**: 
+  - OpenAI Embeddings API for converting text to vectors
+  - OpenAI Chat Completions API (GPT-3.5-turbo) for answer generation
+- **Data Storage**: ChromaDB for persistent vector storage with semantic search capabilities
+- **RAG Pipeline**: Retrieval-Augmented Generation for accurate, context-aware responses
 """)

@@ -1,126 +1,125 @@
-# Research Assistant: PDF Document Manager
+# Research Assistant: PDF Document Manager with AI-Powered Q&A
 
-A Streamlit-based application for managing and indexing PDF documents using vector embeddings and ChromaDB for semantic search capabilities.
+A Streamlit-based application that allows you to upload PDF documents, create vector embeddings, and ask questions with AI-powered answers using Retrieval-Augmented Generation (RAG).
+
+## 🚀 Features
+
+### Document Management
+- **PDF Upload**: Upload multiple PDF files simultaneously
+- **Text Extraction**: Automatic text extraction from PDF documents
+- **Chunking**: Intelligent text splitting for optimal embedding generation
+- **Vector Storage**: Persistent storage using ChromaDB
+- **Document Management**: View, delete individual documents or clear all documents
+
+### AI-Powered Q&A System
+- **Smart Search**: Convert queries to embeddings and find semantically similar content
+- **LLM Integration**: Generate comprehensive answers using OpenAI's GPT-3.5-turbo
+- **Source Attribution**: Track which documents contributed to each answer
+- **Configurable Retrieval**: Choose how many document chunks to analyze (3, 5, or 10)
+- **Transparent Process**: View the exact document chunks used for answer generation
 
 ## 🏗️ Architecture
 
-The application follows a clean separation of concerns:
-
-### UI Layer (`streamlit_app.py`)
-- Handles all user interface components using Streamlit
-- File upload interface
-- Document management dashboard  
-- Progress indicators and user feedback
-- Error handling and display
-
-### Business Logic Layer (`main.py`)
-Contains four main classes:
-
-#### `PDFProcessor`
-- Extracts text from PDF files using `pypdf`
-- Splits text into chunks using LangChain's `RecursiveCharacterTextSplitter`
-- Configurable chunk size and overlap
-
-#### `EmbeddingService`  
-- Generates text embeddings using OpenAI's API
-- Uses `text-embedding-3-small` model by default
-- Handles API authentication and rate limiting
-
-#### `VectorStore`
-- Manages ChromaDB operations for persistent vector storage
-- Handles document CRUD operations
-- Groups documents by source file for easy management
-
-#### `ResearchAssistant`
-- Main orchestrator class that coordinates all operations
-- Processes multiple PDF files in batch
-- Provides high-level API for the UI layer
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.8+
-- OpenAI API key
-
-### Installation
-
-1. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-2. Set up environment variables:
-```bash
-# Create .env file
-echo "OPENAI_API_KEY=your_api_key_here" > .env
-```
-
-3. Run the application:
-```bash
-streamlit run streamlit_app.py
-```
-
-## 📁 File Structure
+The application follows a modular RAG (Retrieval-Augmented Generation) architecture:
 
 ```
-research-assistant/
-├── main.py              # Business logic classes
-├── streamlit_app.py     # Streamlit UI
-├── requirements.txt     # Python dependencies
-├── chroma_db/          # ChromaDB persistent storage
-└── README.md           # This file
+User Query → Embedding → Vector Search → Context Retrieval → LLM → Answer
 ```
+
+### Core Components
+
+1. **PDFProcessor**: Handles PDF text extraction and chunking
+2. **EmbeddingService**: Generates OpenAI embeddings for text
+3. **LLMService**: Generates answers using OpenAI chat completions
+4. **VectorStore**: Manages ChromaDB operations for document storage and retrieval
+5. **ResearchAssistant**: Orchestrates the entire pipeline
+
+## 🛠️ Setup
+
+1. **Clone the repository**
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Set up OpenAI API Key**:
+   Create a `.env` file in the project root:
+   ```
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
+
+4. **Run the application**:
+   ```bash
+   streamlit run streamlit_app.py
+   ```
+
+## 📖 Usage
+
+### 1. Upload Documents
+- Use the file uploader to select PDF files
+- Click "Process and Index Files" to extract text and create embeddings
+- Monitor the processing results and chunk counts
+
+### 2. Ask Questions
+- Type your question in the Q&A section
+- Select how many document chunks to analyze (3, 5, or 10)
+- Click "Get Answer" to receive an AI-generated response
+- View source attribution and retrieved chunks
+
+### 3. Manage Documents
+- View all indexed documents with chunk counts
+- Delete individual documents or all documents
+- Refresh to see current database state
 
 ## 🔧 Configuration
 
-### Environment Variables
-- `OPENAI_API_KEY`: Your OpenAI API key (required)
-- `OPENAI_EMBEDDING_MODEL`: Embedding model to use (optional, defaults to `text-embedding-3-small`)
+### Embedding Model
+- Default: `text-embedding-3-small`
+- Configurable in `EmbeddingService`
 
-### ChromaDB Settings
-- Default persist directory: `chroma_db/`
-- Default collection name: `research_papers`
-- These can be customized in the `VectorStore` class initialization
+### LLM Model
+- Default: `gpt-3.5-turbo`
+- Configurable in `LLMService.generate_answer()`
 
-### Text Processing Settings
+### Text Chunking
 - Chunk size: 1000 characters
-- Chunk overlap: 200 characters
-- Separators: `["\n\n", "\n", " "]`
+- Overlap: 200 characters
+- Configurable in `PDFProcessor`
 
-## 📚 Usage
+## 🎯 Example Queries
 
-1. **Upload PDFs**: Use the file uploader to select one or more PDF files
-2. **Process**: Click "Process and Index Files" to extract text and create embeddings
-3. **View**: See all your indexed documents in the "Existing Documents" section
-4. **Delete**: Remove individual documents or all documents as needed
-5. **Refresh**: Use the refresh button to reload the current state
+- "What are the main topics covered in these documents?"
+- "Summarize the key findings from the research papers"
+- "What methodology was used in the studies?"
+- "What are the conclusions and recommendations?"
 
-## 🔍 Features
+## 🔍 Technical Details
 
-- **Multi-file Processing**: Upload and process multiple PDFs simultaneously
-- **Vector Embeddings**: Uses OpenAI's latest embedding models for semantic search
-- **Persistent Storage**: ChromaDB ensures your data persists between sessions
-- **Document Management**: Easy viewing, deletion, and organization of indexed documents
-- **Error Handling**: Comprehensive error handling with user-friendly messages
-- **Progress Tracking**: Real-time feedback during processing operations
+### RAG Pipeline
+1. **Document Ingestion**: PDFs → Text Extraction → Chunking
+2. **Embedding Generation**: Text Chunks → OpenAI Embeddings → Vector Storage
+3. **Query Processing**: User Query → Query Embedding → Similarity Search
+4. **Answer Generation**: Retrieved Chunks → LLM Context → Generated Answer
 
-## 🛠️ Extending the Application
+### Data Flow
+```
+PDF Files → Text Chunks → Embeddings → ChromaDB
+                                         ↓
+User Query → Query Embedding → Vector Search → Top-K Chunks → LLM → Answer
+```
 
-The modular architecture makes it easy to extend:
+## 📋 Dependencies
 
-- **Add new document types**: Extend `PDFProcessor` or create new processor classes
-- **Different embedding providers**: Modify `EmbeddingService` to use other APIs
-- **Search functionality**: Implement the `search_documents` method in `ResearchAssistant`
-- **Custom storage**: Replace `VectorStore` with different vector databases
+- `streamlit`: Web application framework
+- `openai`: OpenAI API client for embeddings and chat completions
+- `chromadb`: Vector database for semantic search
+- `pypdf`: PDF text extraction
+- `langchain`: Text splitting utilities
+- `python-dotenv`: Environment variable management
 
-## 🐛 Troubleshooting
+## 🚨 Notes
 
-### Common Issues
-
-1. **Import Errors**: Ensure all dependencies are installed via `pip install -r requirements.txt`
-2. **OpenAI API Errors**: Verify your API key is correct and has sufficient credits
-3. **ChromaDB Issues**: Check write permissions for the `chroma_db/` directory
-4. **Memory Issues**: For large PDFs, consider reducing chunk size or processing fewer files at once
-
-### Linter Warnings
-The linter may show import warnings if packages aren't installed in your development environment. These are expected and won't affect runtime when dependencies are properly installed. 
+- Requires OpenAI API key for both embeddings and chat completions
+- ChromaDB data persists locally in the `chroma_db` directory
+- Processing time depends on document size and number of chunks
+- LLM responses are generated based solely on uploaded document content 
